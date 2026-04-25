@@ -24,13 +24,6 @@ declare global {
   }
 
   interface Window {
-    html2pdf?: () => {
-      set: (options: unknown) => {
-        from: (element: HTMLElement) => {
-          save: () => Promise<void>;
-        };
-      };
-    };
     jspdf?: {
       jsPDF: new (options: {
         orientation: "portrait" | "landscape";
@@ -42,7 +35,20 @@ declare global {
             getWidth: () => number;
             getHeight: () => number;
           };
+          getNumberOfPages: () => number;
         };
+        getNumberOfPages: () => number;
+        addImage: (
+          imageData: string | HTMLImageElement | HTMLCanvasElement | Uint8Array,
+          format: string,
+          x: number,
+          y: number,
+          w: number,
+          h: number,
+          alias?: string,
+          compression?: string,
+          rotation?: number
+        ) => void;
         addPage: () => void;
         save: (filename: string) => void;
         setFillColor: (r: number, g?: number, b?: number) => void;
@@ -52,56 +58,58 @@ declare global {
         setFontSize: (size: number) => void;
         setLineWidth: (width: number) => void;
         rect: (x: number, y: number, width: number, height: number, style?: string) => void;
+        roundedRect: (x: number, y: number, width: number, height: number, rx: number, ry: number, style?: string) => void;
         line: (x1: number, y1: number, x2: number, y2: number) => void;
         text: (text: string | string[], x: number, y: number, options?: { align?: string }) => void;
+        getTextWidth: (text: string) => number;
         splitTextToSize: (text: string, size: number) => string[];
       };
     };
   }
 }
 
-const HTML2PDF_SCRIPT_ID = "html2pdf-cdn";
-let html2pdfLoader: Promise<NonNullable<Window["html2pdf"]>> | null = null;
+const JSPDF_SCRIPT_ID = "jspdf-cdn";
+let jsPdfLoader: Promise<NonNullable<Window["jspdf"]>> | null = null;
 
-const loadHtml2Pdf = () => {
-  if (window.html2pdf) {
-    return Promise.resolve(window.html2pdf);
+const loadJsPdf = () => {
+  if (window.jspdf?.jsPDF) {
+    return Promise.resolve(window.jspdf);
   }
 
-  if (html2pdfLoader) {
-    return html2pdfLoader;
+  if (jsPdfLoader) {
+    return jsPdfLoader;
   }
 
-  html2pdfLoader = new Promise<NonNullable<Window["html2pdf"]>>((resolve, reject) => {
-    const existingScript = document.getElementById(HTML2PDF_SCRIPT_ID) as HTMLScriptElement | null;
+  jsPdfLoader = new Promise<NonNullable<Window["jspdf"]>>((resolve, reject) => {
+    const existingScript = document.getElementById(JSPDF_SCRIPT_ID) as HTMLScriptElement | null;
 
     const handleReady = () => {
-      if (window.html2pdf) {
-        resolve(window.html2pdf);
+      if (window.jspdf?.jsPDF) {
+        resolve(window.jspdf);
       } else {
-        reject(new Error("html2pdf failed to initialize"));
+        reject(new Error("jsPDF failed to initialize"));
       }
     };
 
     if (existingScript) {
       existingScript.addEventListener("load", handleReady, { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("Failed to load html2pdf")), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load jsPDF")), { once: true });
       return;
     }
 
     const script = document.createElement("script");
-    script.id = HTML2PDF_SCRIPT_ID;
-    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+    script.id = JSPDF_SCRIPT_ID;
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
     script.async = true;
     script.onload = handleReady;
-    script.onerror = () => reject(new Error("Failed to load html2pdf"));
+    script.onerror = () => reject(new Error("Failed to load jsPDF"));
     document.head.appendChild(script);
   }).catch((error) => {
-    html2pdfLoader = null;
+    jsPdfLoader = null;
     throw error;
   });
 
-  return html2pdfLoader;
+  return jsPdfLoader;
 };
 
 const PROJECTS = [
@@ -145,7 +153,6 @@ const SKILLS = [
 ];
 
 const CONTACT_DETAILS = [
-  "Bangkok, Thailand",
   "rady.bmcs@gmail.com",
   "linkedin.com/in/rady-y",
   "github.com/radytrainer",
@@ -178,7 +185,7 @@ const RESUME_PROFILE =
   "I design and build frontend experiences that are fast, intuitive, and maintainable. My work centers on thoughtful interaction design, reusable systems, and close collaboration with product and design partners to deliver interfaces that feel refined in both code and UI.";
 
 const ensureJsPdf = async () => {
-  await loadHtml2Pdf();
+  await loadJsPdf();
 
   const jsPdf = window.jspdf?.jsPDF;
   if (!jsPdf) {
@@ -188,183 +195,333 @@ const ensureJsPdf = async () => {
   return jsPdf;
 };
 
+const getBase64Image = (url: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.setAttribute("crossOrigin", "anonymous");
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas context failed"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("Image failed to load"));
+    img.src = url;
+  });
+};
+
 const createResumePdf = async () => {
   const JsPDF = await ensureJsPdf();
+  const profileImageUrl = `${import.meta.env.BASE_URL}profile-image.png`;
+  let profileBase64 = "";
+  
+  try {
+    profileBase64 = await getBase64Image(profileImageUrl);
+  } catch (e) {
+    console.warn("Could not load profile image for PDF", e);
+  }
+
   const doc = new JsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 40;
-  const sidebarWidth = 170;
-  const contentX = margin + sidebarWidth + 24;
-  const contentWidth = pageWidth - contentX - margin;
-  const bottomLimit = pageHeight - margin;
+  const margin = 42;
+  const contentWidth = pageWidth - margin * 2;
+  const bottomLimit = pageHeight - 46;
+  let cursorY = 52;
 
-  let leftY = 178;
-  let rightY = 188;
+  const drawPageChrome = (showCompactHeader = false) => {
+    const pageNumber = doc.internal.getNumberOfPages();
+    
+    // Top Accent Bar
+    doc.setFillColor(15, 23, 42); // Slate-900
+    doc.rect(margin, 24, contentWidth, 6, "F");
+    doc.setFillColor(0, 88, 190); // Blue-600
+    doc.rect(margin, 24, contentWidth * 0.4, 6, "F");
+
+    if (showCompactHeader) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text("RADY Y", margin, 46);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 116, 139);
+      doc.text("Senior Frontend Engineer", pageWidth - margin, 46, { align: "right" });
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.line(margin, 52, pageWidth - margin, 52);
+      cursorY = 75;
+    } else {
+      doc.setTextColor(0, 88, 190);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text("SENIOR FRONTEND ENGINEER", margin, 55);
+
+      cursorY = 82;
+      doc.setTextColor(15, 23, 42);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(28);
+      doc.text("Rady Y", margin, cursorY);
+
+      // Contact & Links Row
+      cursorY += 18;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      
+      const contactInfo = CONTACT_DETAILS.join("   •   ");
+      doc.text(contactInfo, margin, cursorY);
+
+      // Profile Image
+      if (profileBase64) {
+        const imgSize = 70;
+        const imgX = pageWidth - margin - imgSize;
+        const imgY = 42;
+        
+        // Draw image
+        try {
+          // Circular clipping is hard in jsPDF manual drawing, so we use a rounded rect if supported or just addImage
+          // To make it look nice, we'll draw a border circle
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(1);
+          // roundedRect can simulate a circle if radius is half of size
+          doc.roundedRect(imgX, imgY, imgSize, imgSize, imgSize / 2, imgSize / 2, "D");
+          doc.addImage(profileBase64, "PNG", imgX + 2, imgY + 2, imgSize - 4, imgSize - 4);
+        } catch (e) {
+          console.error("Failed to add image to PDF", e);
+        }
+      }
+
+      // Summary
+      cursorY += 28;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      doc.setTextColor(30, 41, 59);
+      const summaryLines = doc.splitTextToSize(RESUME_SUMMARY, contentWidth);
+      doc.text(summaryLines, margin, cursorY);
+      
+      cursorY += (summaryLines.length * 14) + 15;
+      
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(1);
+      doc.line(margin, cursorY, pageWidth - margin, cursorY);
+      cursorY += 30;
+    }
+
+    // Page Number Footer
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Page ${pageNumber}`, pageWidth / 2, pageHeight - 25, { align: "center" });
+  };
 
   const addPage = () => {
     doc.addPage();
-    doc.setFillColor(248, 251, 255);
-    doc.rect(0, 0, sidebarWidth + margin + 14, pageHeight, "F");
-    doc.setFillColor(15, 23, 42);
-    doc.rect(margin, 28, pageWidth - margin * 2, 8, "F");
-    leftY = margin + 20;
-    rightY = margin + 20;
+    drawPageChrome(true);
   };
 
-  const ensureRightSpace = (needed: number) => {
-    if (rightY + needed > bottomLimit) {
+  const ensureSpace = (needed: number): boolean => {
+    if (cursorY + needed > bottomLimit) {
       addPage();
+      return true; // Page was added
     }
+    return false;
   };
 
-  const ensureLeftSpace = (needed: number) => {
-    if (leftY + needed > bottomLimit) {
-      addPage();
-    }
-  };
-
-  doc.setFillColor(248, 251, 255);
-  doc.rect(0, 0, sidebarWidth + margin + 14, pageHeight, "F");
-  doc.setFillColor(15, 23, 42);
-  doc.rect(margin, 28, pageWidth - margin * 2, 8, "F");
-
-  doc.setTextColor(0, 88, 190);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("SENIOR FRONTEND ENGINEER", contentX, 72);
-
-  doc.setTextColor(15, 23, 42);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(28);
-  doc.text("Rady Y", contentX, 102);
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(71, 85, 105);
-  const summaryLines = doc.splitTextToSize(RESUME_SUMMARY, contentWidth - 10);
-  doc.text(summaryLines, contentX, 126);
-
-  doc.setDrawColor(219, 228, 240);
-  doc.setLineWidth(1);
-  doc.line(contentX, 154, pageWidth - margin, 154);
-
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(219, 228, 240);
-  doc.rect(margin, 52, sidebarWidth, 108, "FD");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(15, 23, 42);
-  doc.text("CONTACT", margin + 14, 74);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(71, 85, 105);
-  doc.text(CONTACT_DETAILS, margin + 14, 94);
-
-  const drawSectionTitle = (title: string, x: number, y: number) => {
+  const drawSectionTitle = (title: string) => {
+    ensureSpace(35);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
-    doc.text(title.toUpperCase(), x, y);
-  };
-
-  const drawParagraph = (text: string, x: number, y: number, width: number) => {
-    const lines = doc.splitTextToSize(text, width);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text(lines, x, y);
-    return y + lines.length * 14;
-  };
-
-  drawSectionTitle("Core Skills", margin, leftY);
-  leftY += 18;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(71, 85, 105);
-  const skillsLines = doc.splitTextToSize(
-    [...SKILLS.map((skill) => skill.name), "Accessibility", "Design Systems", "Responsive UI", "Performance"].join(" • "),
-    sidebarWidth - 20
-  );
-  doc.text(skillsLines, margin, leftY);
-  leftY += skillsLines.length * 13 + 20;
-
-  ensureLeftSpace(90);
-  drawSectionTitle("Strengths", margin, leftY);
-  leftY += 18;
-  RESUME_STRENGTHS.forEach((item) => {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    const lines = doc.splitTextToSize(`• ${item}`, sidebarWidth - 16);
-    doc.text(lines, margin, leftY);
-    leftY += lines.length * 13 + 4;
-  });
-
-  ensureLeftSpace(110);
-  leftY += 8;
-  drawSectionTitle("Focus Areas", margin, leftY);
-  leftY += 18;
-  RESUME_FOCUS_AREAS.forEach((item) => {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(item.label.toUpperCase(), margin, leftY);
-    leftY += 12;
-    const lines = doc.splitTextToSize(item.value, sidebarWidth - 16);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    doc.text(lines, margin, leftY);
-    leftY += lines.length * 12 + 10;
-  });
-
-  drawSectionTitle("Professional Summary", contentX, rightY);
-  rightY += 18;
-  rightY = drawParagraph(RESUME_PROFILE, contentX, rightY, contentWidth);
-  rightY += 12;
-
-  ensureRightSpace(170);
-  drawSectionTitle("Selected Projects", contentX, rightY);
-  rightY += 18;
-  PROJECTS.forEach((project) => {
-    const tagText = project.tags.join(" | ");
-    const projectText = `${project.title} (${tagText})`;
-    const titleLines = doc.splitTextToSize(projectText, contentWidth);
-    const descLines = doc.splitTextToSize(project.description, contentWidth - 16);
-    const blockHeight = titleLines.length * 13 + descLines.length * 13 + 22;
-
-    ensureRightSpace(blockHeight + 10);
-    doc.setFillColor(248, 251, 255);
-    doc.rect(contentX, rightY - 12, contentWidth, blockHeight, "F");
+    
+    // Draw heading with a small accent
     doc.setFillColor(0, 88, 190);
-    doc.rect(contentX, rightY - 12, 4, blockHeight, "F");
+    doc.rect(margin, cursorY - 10, 3, 12, "F");
+    doc.text(title.toUpperCase(), margin + 10, cursorY);
+    
+    cursorY += 18;
+  };
+
+  const drawParagraph = (text: string, width = contentWidth, fontSize = 10, color = [71, 85, 105]) => {
+    const lines = doc.splitTextToSize(text, width) as string[];
+    
+    lines.forEach((line) => {
+      ensureSpace(14);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(fontSize);
+      doc.setTextColor(color[0], color[1], color[2]);
+      doc.text(line, margin, cursorY);
+      cursorY += 14;
+    });
+    cursorY += 4;
+  };
+
+  const drawBulletList = (items: string[], width = contentWidth) => {
+    items.forEach((item) => {
+      const lines = doc.splitTextToSize(item, width - 15) as string[];
+      
+      // Ensure space for at least the first line and the bullet
+      ensureSpace(lines.length * 14 + 2);
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(0, 88, 190);
+      doc.text("•", margin + 2, cursorY);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      
+      lines.forEach((line, idx) => {
+        if (idx > 0) ensureSpace(14);
+        doc.text(line, margin + 15, cursorY);
+        cursorY += 14;
+      });
+      cursorY += 2;
+    });
+    cursorY += 6;
+  };
+
+  const drawTagRow = (items: string[]) => {
+    const paddingX = 10;
+    const itemHeight = 18;
+    const gap = 6;
+    let x = margin;
+
+    items.forEach((item) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      const itemWidth = doc.getTextWidth(item) + paddingX * 2;
+
+      if (x + itemWidth > pageWidth - margin) {
+        x = margin;
+        cursorY += itemHeight + gap;
+      }
+
+      const pageChanged = ensureSpace(itemHeight + 8);
+      if (pageChanged) {
+        x = margin; // Reset X on new page
+      }
+      
+      doc.setFillColor(248, 251, 255);
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(x, cursorY - 11, itemWidth, itemHeight, 4, 4, "FD");
+      doc.setTextColor(15, 23, 42);
+      doc.text(item, x + paddingX, cursorY + 2);
+      x += itemWidth + gap;
+    });
+
+    cursorY += itemHeight + 15;
+  };
+
+  const drawProjectCard = (title: string, tags: string[], description: string, link: string) => {
+    const titleLines = doc.splitTextToSize(title, contentWidth - 35) as string[];
+    const tagLine = tags.join("  •  ");
+    const tagLines = doc.splitTextToSize(tagLine, contentWidth - 35) as string[];
+    const descLines = doc.splitTextToSize(description, contentWidth - 35) as string[];
+    const linkLines = doc.splitTextToSize(link, contentWidth - 35) as string[];
+    
+    const blockHeight =
+      15 +
+      titleLines.length * 14 +
+      4 +
+      tagLines.length * 11 +
+      8 +
+      descLines.length * 13 +
+      8 +
+      linkLines.length * 10 +
+      10;
+
+    ensureSpace(blockHeight + 10);
+
+    doc.setFillColor(252, 254, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(margin, cursorY - 12, contentWidth, blockHeight, 8, 8, "FD");
+    
+    doc.setFillColor(0, 88, 190);
+    doc.rect(margin, cursorY - 12, 3, blockHeight, "F");
+
+    let innerY = cursorY + 2;
+    const textX = margin + 15;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(15, 23, 42);
-    doc.text(titleLines, contentX + 14, rightY + 2);
+    titleLines.forEach(line => {
+      doc.text(line, textX, innerY);
+      innerY += 14;
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 88, 190);
+    tagLines.forEach(line => {
+      doc.text(line.toUpperCase(), textX, innerY);
+      innerY += 11;
+    });
+    innerY += 5;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(71, 85, 105);
-    doc.text(descLines, contentX + 14, rightY + titleLines.length * 13 + 4);
-    rightY += blockHeight + 10;
+    descLines.forEach(line => {
+      doc.text(line, textX, innerY);
+      innerY += 13;
+    });
+    innerY += 5;
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(148, 163, 184);
+    linkLines.forEach(line => {
+      doc.text(line, textX, innerY);
+      innerY += 10;
+    });
+
+    cursorY += blockHeight + 10;
+  };
+
+  drawPageChrome();
+
+  drawSectionTitle("Professional Summary");
+  drawParagraph(RESUME_PROFILE);
+
+  drawSectionTitle("Core Skills");
+  drawTagRow([
+    ...SKILLS.map((skill) => skill.name),
+    "Accessibility",
+    "Design Systems",
+    "Responsive UI",
+    "Performance",
+  ]);
+
+  drawSectionTitle("Strengths");
+  drawBulletList(RESUME_STRENGTHS);
+
+  drawSectionTitle("Focus Areas");
+  RESUME_FOCUS_AREAS.forEach((item) => {
+    ensureSpace(34);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text(item.label.toUpperCase(), margin, cursorY);
+    cursorY += 13;
+    drawParagraph(item.value, contentWidth, 10);
   });
 
-  ensureRightSpace(120);
-  rightY += 4;
-  drawSectionTitle("Professional Highlights", contentX, rightY);
-  rightY += 18;
-  RESUME_HIGHLIGHTS.forEach((item) => {
-    const lines = doc.splitTextToSize(`• ${item}`, contentWidth);
-    ensureRightSpace(lines.length * 13 + 8);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    doc.setTextColor(71, 85, 105);
-    doc.text(lines, contentX, rightY);
-    rightY += lines.length * 13 + 6;
+  drawSectionTitle("Selected Projects");
+  PROJECTS.forEach((project) => {
+    drawProjectCard(project.title, project.tags, project.description, project.link);
   });
+
+  drawSectionTitle("Professional Highlights");
+  drawBulletList(RESUME_HIGHLIGHTS);
 
   doc.save("Rady_Y_Final.pdf");
 };
@@ -376,8 +533,15 @@ export default function App() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelpOpen, setInstallHelpOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [hasDismissedBanner, setHasDismissedBanner] = useState(false);
 
-  const isIos = /iphone|ipad|ipod/i.test(typeof navigator !== "undefined" ? navigator.userAgent : "");
+  const isIos = /iphone|ipad|ipod/i.test(
+    typeof navigator !== "undefined" ? navigator.userAgent : ""
+  );
+  const isMobile = /android|iphone|ipad|ipod/i.test(
+    typeof navigator !== "undefined" ? navigator.userAgent : ""
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -425,11 +589,19 @@ export default function App() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
 
+    // Auto-show install banner after 3 seconds on mobile if not already installed
+    if (isMobile && !isStandalone && !hasDismissedBanner) {
+      const timer = setTimeout(() => {
+        setShowInstallBanner(true);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
-  }, []);
+  }, [isMobile, isStandalone, hasDismissedBanner]);
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
@@ -551,8 +723,58 @@ export default function App() {
           <p className="mt-2 text-sm leading-6 text-slate-600">
             Open the browser share menu, then choose <span className="font-semibold text-slate-900">Add to Home Screen</span> to install this portfolio as an app.
           </p>
+          <button 
+            onClick={() => setInstallHelpOpen(false)}
+            className="mt-4 w-full py-2 bg-slate-100 rounded-lg text-sm font-bold text-slate-900"
+          >
+            Got it
+          </button>
         </div>
       )}
+
+      {/* Floating Install Prompt (Mobile Only) */}
+      <AnimatePresence>
+        {showInstallBanner && !isStandalone && (
+          <motion.div
+            initial={{ y: 100, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 100, opacity: 0 }}
+            className="fixed bottom-6 left-4 right-4 z-[60] md:hidden"
+          >
+            <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-secondary rounded-xl flex items-center justify-center text-white">
+                  <Download className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold">Install Portfolio App</p>
+                  <p className="text-xs text-slate-400">Get the best experience locally</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setShowInstallBanner(false);
+                    setHasDismissedBanner(true);
+                  }}
+                  className="px-3 py-2 text-xs font-bold text-slate-400"
+                >
+                  Later
+                </button>
+                <button
+                  onClick={() => {
+                    handleInstallApp();
+                    setShowInstallBanner(false);
+                  }}
+                  className="bg-white text-slate-900 px-4 py-2 rounded-xl text-sm font-bold"
+                >
+                  Install
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main id="pdf-content">
         {/* Hero Section */}
@@ -1229,4 +1451,3 @@ export default function App() {
     </div>
   );
 }
-
