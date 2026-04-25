@@ -201,14 +201,33 @@ const getBase64Image = (url: string): Promise<string> => {
     img.setAttribute("crossOrigin", "anonymous");
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      // Use the smaller dimension to make a perfect square/circle
+      const size = Math.min(img.width, img.height);
+      canvas.width = size;
+      canvas.height = size;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         reject(new Error("Canvas context failed"));
         return;
       }
-      ctx.drawImage(img, 0, 0);
+      
+      // Draw circular clip
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+      
+      // Draw image centered and cropped
+      ctx.drawImage(
+        img,
+        (img.width - size) / 2,
+        (img.height - size) / 2,
+        size,
+        size,
+        0,
+        0,
+        size,
+        size
+      );
       resolve(canvas.toDataURL("image/png"));
     };
     img.onerror = () => reject(new Error("Image failed to load"));
