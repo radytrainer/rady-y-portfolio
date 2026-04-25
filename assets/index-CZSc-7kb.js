@@ -455,4 +455,4 @@ Error generating stack: `+i.message+`
           line-height: 1.5;
           color: #334155;
         }
-      `})]})}"serviceWorker"in navigator&&window.addEventListener("load",()=>{navigator.serviceWorker.register("/sw.js").then(a=>{console.log("SW registered:",a)}).catch(a=>{console.log("SW registration failed:",a)})});F1.createRoot(document.getElementById("root")).render(M.jsx(W.StrictMode,{children:M.jsx(AA,{})}));
+      `})]})}"serviceWorker"in navigator&&window.addEventListener("load",()=>{navigator.serviceWorker.register("/rady-y-portfolio/sw.js").then(a=>{console.log("SW registered:",a)}).catch(a=>{console.log("SW registration failed:",a)})});F1.createRoot(document.getElementById("root")).render(M.jsx(W.StrictMode,{children:M.jsx(AA,{})}));
