@@ -58,6 +58,7 @@ declare global {
         setFontSize: (size: number) => void;
         setLineWidth: (width: number) => void;
         rect: (x: number, y: number, width: number, height: number, style?: string) => void;
+        circle: (x: number, y: number, radius: number, style?: string) => void;
         roundedRect: (x: number, y: number, width: number, height: number, rx: number, ry: number, style?: string) => void;
         line: (x1: number, y1: number, x2: number, y2: number) => void;
         text: (text: string | string[], x: number, y: number, options?: { align?: string }) => void;
@@ -249,300 +250,245 @@ const createResumePdf = async () => {
   const doc = new JsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 42;
-  const contentWidth = pageWidth - margin * 2;
-  const bottomLimit = pageHeight - 46;
-  let cursorY = 52;
+  const sidebarWidth = 195;
+  const mainX = sidebarWidth + 30;
+  const mainWidth = pageWidth - mainX - 35;
+  const bottomLimit = pageHeight - 45;
+  
+  const colors = {
+    sidebarBg: [30, 41, 59], // Slate-800
+    accent: [251, 192, 45],  // Yellow-700
+    textMain: [30, 41, 59],
+    textSidebar: [241, 245, 249],
+    textSidebarDim: [148, 163, 184],
+    divider: [226, 232, 240]
+  };
 
-  const drawPageChrome = (showCompactHeader = false) => {
-    const pageNumber = doc.internal.getNumberOfPages();
+  let cursorY = 40;
+  let sidebarY = 40;
+
+  const drawPageLayout = () => {
+    // Sidebar Background
+    doc.setFillColor(colors.sidebarBg[0], colors.sidebarBg[1], colors.sidebarBg[2]);
+    doc.rect(0, 0, sidebarWidth, pageHeight, "F");
     
-    // Top Accent Bar
-    doc.setFillColor(15, 23, 42); // Slate-900
-    doc.rect(margin, 24, contentWidth, 6, "F");
-    doc.setFillColor(0, 88, 190); // Blue-600
-    doc.rect(margin, 24, contentWidth * 0.4, 6, "F");
-
-    if (showCompactHeader) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text("RADY Y", margin, 46);
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(100, 116, 139);
-      doc.text("Senior Frontend Engineer", pageWidth - margin, 46, { align: "right" });
-      
-      doc.setDrawColor(226, 232, 240);
-      doc.line(margin, 52, pageWidth - margin, 52);
-      cursorY = 75;
-    } else {
-      doc.setTextColor(0, 88, 190);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text("SENIOR FRONTEND ENGINEER", margin, 55);
-
-      cursorY = 82;
-      doc.setTextColor(15, 23, 42);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(28);
-      doc.text("Rady Y", margin, cursorY);
-
-      // Contact & Links Row
-      cursorY += 18;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9.5);
-      doc.setTextColor(71, 85, 105);
-      
-      const contactInfo = CONTACT_DETAILS.join("   •   ");
-      doc.text(contactInfo, margin, cursorY);
-
-      // Profile Image
-      if (profileBase64) {
-        const imgSize = 70;
-        const imgX = pageWidth - margin - imgSize;
-        const imgY = 42;
-        
-        // Draw image
-        try {
-          // Circular clipping is hard in jsPDF manual drawing, so we use a rounded rect if supported or just addImage
-          // To make it look nice, we'll draw a border circle
-          doc.setDrawColor(226, 232, 240);
-          doc.setLineWidth(1);
-          // roundedRect can simulate a circle if radius is half of size
-          doc.roundedRect(imgX, imgY, imgSize, imgSize, imgSize / 2, imgSize / 2, "D");
-          doc.addImage(profileBase64, "PNG", imgX + 2, imgY + 2, imgSize - 4, imgSize - 4);
-        } catch (e) {
-          console.error("Failed to add image to PDF", e);
-        }
-      }
-
-      // Summary
-      cursorY += 28;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10.5);
-      doc.setTextColor(30, 41, 59);
-      const summaryLines = doc.splitTextToSize(RESUME_SUMMARY, contentWidth);
-      doc.text(summaryLines, margin, cursorY);
-      
-      cursorY += (summaryLines.length * 14) + 15;
-      
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(1);
-      doc.line(margin, cursorY, pageWidth - margin, cursorY);
-      cursorY += 30;
-    }
-
-    // Page Number Footer
+    // Page Number
     doc.setFont("helvetica", "italic");
     doc.setFontSize(8);
     doc.setTextColor(148, 163, 184);
-    doc.text(`Page ${pageNumber}`, pageWidth / 2, pageHeight - 25, { align: "center" });
+    doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - 45, pageHeight - 25, { align: "right" });
   };
 
   const addPage = () => {
     doc.addPage();
-    drawPageChrome(true);
+    sidebarY = 40;
+    cursorY = 40;
+    drawPageLayout();
   };
 
   const ensureSpace = (needed: number): boolean => {
     if (cursorY + needed > bottomLimit) {
       addPage();
-      return true; // Page was added
+      return true;
     }
     return false;
   };
 
-  const drawSectionTitle = (title: string) => {
-    ensureSpace(35);
+  const drawSidebarHeader = () => {
+    // Profile Image
+    if (profileBase64) {
+      const imgSize = 95;
+      const imgX = (sidebarWidth - imgSize) / 2;
+      const imgY = 45;
+      
+      doc.setFillColor(colors.accent[0], colors.accent[1], colors.accent[2]);
+      doc.circle(imgX + imgSize/2, imgY + imgSize/2, imgSize/2 + 3, "F");
+      doc.addImage(profileBase64, "PNG", imgX, imgY, imgSize, imgSize);
+      sidebarY = imgY + imgSize + 35;
+    }
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(22);
+    doc.text("Rady Y", sidebarWidth / 2, sidebarY, { align: "center" });
+    
+    sidebarY += 18;
+    doc.setTextColor(colors.accent[0], colors.accent[1], colors.accent[2]);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    
-    // Draw heading with a small accent
-    doc.setFillColor(0, 88, 190);
-    doc.rect(margin, cursorY - 10, 3, 12, "F");
-    doc.text(title.toUpperCase(), margin + 10, cursorY);
-    
-    cursorY += 18;
+    doc.text("GRAPHIC DESIGNER", sidebarWidth / 2, sidebarY, { align: "center" });
+    sidebarY += 35;
   };
 
-  const drawParagraph = (text: string, width = contentWidth, fontSize = 10, color = [71, 85, 105]) => {
-    const lines = doc.splitTextToSize(text, width) as string[];
+  const drawSidebarSectionTitle = (title: string, iconColor = colors.accent) => {
+    doc.setFillColor(iconColor[0], iconColor[1], iconColor[2]);
+    doc.circle(35, sidebarY - 4, 12, "F");
     
-    lines.forEach((line) => {
-      ensureSpace(14);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(fontSize);
-      doc.setTextColor(color[0], color[1], color[2]);
-      doc.text(line, margin, cursorY);
-      cursorY += 14;
-    });
-    cursorY += 4;
-  };
-
-  const drawBulletList = (items: string[], width = contentWidth) => {
-    items.forEach((item) => {
-      const lines = doc.splitTextToSize(item, width - 15) as string[];
-      
-      // Ensure space for at least the first line and the bullet
-      ensureSpace(lines.length * 14 + 2);
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.setTextColor(0, 88, 190);
-      doc.text("•", margin + 2, cursorY);
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105);
-      
-      lines.forEach((line, idx) => {
-        if (idx > 0) ensureSpace(14);
-        doc.text(line, margin + 15, cursorY);
-        cursorY += 14;
-      });
-      cursorY += 2;
-    });
-    cursorY += 6;
-  };
-
-  const drawTagRow = (items: string[]) => {
-    const paddingX = 10;
-    const itemHeight = 18;
-    const gap = 6;
-    let x = margin;
-
-    items.forEach((item) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      const itemWidth = doc.getTextWidth(item) + paddingX * 2;
-
-      if (x + itemWidth > pageWidth - margin) {
-        x = margin;
-        cursorY += itemHeight + gap;
-      }
-
-      const pageChanged = ensureSpace(itemHeight + 8);
-      if (pageChanged) {
-        x = margin; // Reset X on new page
-      }
-      
-      doc.setFillColor(248, 251, 255);
-      doc.setDrawColor(203, 213, 225);
-      doc.roundedRect(x, cursorY - 11, itemWidth, itemHeight, 4, 4, "FD");
-      doc.setTextColor(15, 23, 42);
-      doc.text(item, x + paddingX, cursorY + 2);
-      x += itemWidth + gap;
-    });
-
-    cursorY += itemHeight + 15;
-  };
-
-  const drawProjectCard = (title: string, tags: string[], description: string, link: string) => {
-    const titleLines = doc.splitTextToSize(title, contentWidth - 35) as string[];
-    const tagLine = tags.join("  •  ");
-    const tagLines = doc.splitTextToSize(tagLine, contentWidth - 35) as string[];
-    const descLines = doc.splitTextToSize(description, contentWidth - 35) as string[];
-    const linkLines = doc.splitTextToSize(link, contentWidth - 35) as string[];
-    
-    const blockHeight =
-      15 +
-      titleLines.length * 14 +
-      4 +
-      tagLines.length * 11 +
-      8 +
-      descLines.length * 13 +
-      8 +
-      linkLines.length * 10 +
-      10;
-
-    ensureSpace(blockHeight + 10);
-
-    doc.setFillColor(252, 254, 255);
-    doc.setDrawColor(226, 232, 240);
-    doc.roundedRect(margin, cursorY - 12, contentWidth, blockHeight, 8, 8, "FD");
-    
-    doc.setFillColor(0, 88, 190);
-    doc.rect(margin, cursorY - 12, 3, blockHeight, "F");
-
-    let innerY = cursorY + 2;
-    const textX = margin + 15;
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    titleLines.forEach(line => {
-      doc.text(line, textX, innerY);
-      innerY += 14;
-    });
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.setTextColor(0, 88, 190);
-    tagLines.forEach(line => {
-      doc.text(line.toUpperCase(), textX, innerY);
-      innerY += 11;
-    });
-    innerY += 5;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105);
-    descLines.forEach(line => {
-      doc.text(line, textX, innerY);
-      innerY += 13;
-    });
-    innerY += 5;
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(148, 163, 184);
-    linkLines.forEach(line => {
-      doc.text(line, textX, innerY);
-      innerY += 10;
-    });
-
-    cursorY += blockHeight + 10;
+    doc.setTextColor(255, 255, 255);
+    doc.text(title.toUpperCase(), 55, sidebarY);
+    
+    sidebarY += 8;
+    doc.setDrawColor(71, 85, 105); // Improved visibility on dark background
+    doc.line(55, sidebarY, sidebarWidth - 25, sidebarY);
+    sidebarY += 22;
   };
 
-  drawPageChrome();
+  const drawSidebarContact = () => {
+    drawSidebarSectionTitle("Contact");
+    const labels = ["Email", "Github", "LinkedIn"];
+    const values = [CONTACT_DETAILS[0], "radytrainer", "rady-y"];
+    
+    labels.forEach((label, i) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(colors.accent[0], colors.accent[1], colors.accent[2]);
+      doc.text(label, 30, sidebarY);
+      sidebarY += 12;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(255, 255, 255);
+      doc.text(values[i], 30, sidebarY);
+      sidebarY += 18;
+    });
+    sidebarY += 15;
+  };
 
-  drawSectionTitle("Professional Summary");
-  drawParagraph(RESUME_PROFILE);
+  const drawSidebarSkills = () => {
+    drawSidebarSectionTitle("Skills");
+    const skills = [
+      { name: "React", level: 0.9 },
+      { name: "TypeScript", level: 0.85 },
+      { name: "Tailwind", level: 0.95 },
+      { name: "Node.js", level: 0.75 },
+      { name: "GraphQL", level: 0.7 }
+    ];
 
-  drawSectionTitle("Core Skills");
-  drawTagRow([
-    ...SKILLS.map((skill) => skill.name),
-    "Accessibility",
-    "Design Systems",
-    "Responsive UI",
-    "Performance",
-  ]);
+    skills.forEach(skill => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(skill.name, 30, sidebarY);
+      
+      sidebarY += 8;
+      doc.setFillColor(51, 65, 85); // Slate-700 for the bar background
+      doc.rect(30, sidebarY - 4, 135, 4, "F");
+      doc.setFillColor(colors.accent[0], colors.accent[1], colors.accent[2]);
+      doc.rect(30, sidebarY - 4, 135 * skill.level, 4, "F");
+      
+      sidebarY += 16;
+    });
+  };
 
-  drawSectionTitle("Strengths");
-  drawBulletList(RESUME_STRENGTHS);
-
-  drawSectionTitle("Focus Areas");
-  RESUME_FOCUS_AREAS.forEach((item) => {
-    ensureSpace(34);
+  const drawMainSectionTitle = (title: string, iconColor = colors.accent) => {
+    ensureSpace(40);
+    doc.setFillColor(iconColor[0], iconColor[1], iconColor[2]);
+    doc.circle(mainX + 10, cursorY - 4, 12, "F");
+    
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
-    doc.setTextColor(100, 116, 139);
-    doc.text(item.label.toUpperCase(), margin, cursorY);
-    cursorY += 13;
-    drawParagraph(item.value, contentWidth, 10);
-  });
+    doc.setFontSize(13);
+    doc.setTextColor(colors.textMain[0], colors.textMain[1], colors.textMain[2]);
+    doc.text(title.toUpperCase(), mainX + 30, cursorY);
+    
+    cursorY += 6;
+    doc.setDrawColor(colors.divider[0], colors.divider[1], colors.divider[2]);
+    doc.line(mainX + 30, cursorY, pageWidth - 35, cursorY);
+    cursorY += 28;
+  };
 
-  drawSectionTitle("Selected Projects");
-  PROJECTS.forEach((project) => {
-    drawProjectCard(project.title, project.tags, project.description, project.link);
-  });
+  const drawMainProfile = () => {
+    drawMainSectionTitle("Profile");
+    const lines = doc.splitTextToSize(RESUME_PROFILE, mainWidth);
+    lines.forEach((line: string) => {
+      ensureSpace(16);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text(line, mainX, cursorY);
+      cursorY += 16;
+    });
+    cursorY += 20;
+  };
 
-  drawSectionTitle("Professional Highlights");
-  drawBulletList(RESUME_HIGHLIGHTS);
+  const drawMainExperience = () => {
+    drawMainSectionTitle("Experience");
+    
+    const experiences = [
+       { title: "Senior Frontend Engineer", company: "Dev Collective", date: "June 2020 - Present", desc: "Built accessible interfaces that balanced product goals, maintainability, and visual quality." },
+       { title: "Frontend Engineer", company: "Web Flow Inc", date: "March 2017 - May 2020", desc: "Delivered responsive experiences for dashboards and collaboration-focused products." }
+    ];
 
-  doc.save("Rady_Y_Final.pdf");
+    experiences.forEach((exp, i) => {
+      const descLines = doc.splitTextToSize(exp.desc, mainWidth - 20) as string[];
+      const blockHeight = 55 + (descLines.length * 14);
+      
+      ensureSpace(blockHeight);
+      
+      // Timeline Line
+      doc.setDrawColor(colors.accent[0], colors.accent[1], colors.accent[2]);
+      doc.setLineWidth(1.5);
+      doc.line(mainX - 15, cursorY - 5, mainX - 15, cursorY + blockHeight - 20);
+      doc.setFillColor(colors.accent[0], colors.accent[1], colors.accent[2]);
+      doc.circle(mainX - 15, cursorY - 5, 4, "F");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11.5);
+      doc.setTextColor(colors.textMain[0], colors.textMain[1], colors.textMain[2]);
+      doc.text(exp.title, mainX, cursorY);
+      
+      cursorY += 14;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(colors.textMain[0], colors.textMain[1], colors.textMain[2]);
+      doc.text(`${exp.company}  |  ${exp.date}`, mainX, cursorY);
+      
+      cursorY += 18;
+      doc.setFontSize(10);
+      doc.setTextColor(71, 85, 105);
+      descLines.forEach(line => {
+        doc.text(line, mainX, cursorY);
+        cursorY += 14;
+      });
+      
+      cursorY += 12;
+    });
+  };
+
+  const drawMainPortfolio = () => {
+    drawMainSectionTitle("Portfolio");
+    PROJECTS.forEach(project => {
+      const descLines = doc.splitTextToSize(project.description, mainWidth) as string[];
+      ensureSpace(40 + (descLines.length * 13));
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(colors.textMain[0], colors.textMain[1], colors.textMain[2]);
+      doc.text(project.title, mainX, cursorY);
+      cursorY += 14;
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.5);
+      doc.setTextColor(71, 85, 105);
+      descLines.forEach(line => {
+        doc.text(line, mainX, cursorY);
+        cursorY += 13;
+      });
+      cursorY += 15;
+    });
+  };
+
+  drawPageLayout();
+  drawSidebarHeader();
+  drawSidebarContact();
+  drawSidebarSkills();
+  
+  drawMainProfile();
+  drawMainExperience();
+  drawMainPortfolio();
+
+  doc.save("Rady_Y_Resume.pdf");
 };
 
 export default function App() {
