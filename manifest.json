@@ -2,21 +2,21 @@
   "name": "Rady Y Portfolio",
   "short_name": "RadyYDev",
   "description": "Professional portfolio for Rady Y, Senior Frontend Engineer.",
-  "start_url": "/",
-  "scope": "/",
+  "start_url": "/rady-y-portfolio/",
+  "scope": "/rady-y-portfolio/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#f8f9ff",
   "theme_color": "#0b1c30",
   "icons": [
     {
-      "src": "/icon-192x192.png",
+      "src": "/rady-y-portfolio/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512x512.png",
+      "src": "/rady-y-portfolio/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
