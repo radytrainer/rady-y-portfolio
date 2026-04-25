@@ -106,22 +106,22 @@ const loadHtml2Pdf = () => {
 
 const PROJECTS = [
   {
-    id: "ecotrack",
-    title: "EcoTrack",
-    description: "Sustainability dashboard for enterprise carbon monitoring.",
-    image: "https://lh3.googleusercontent.com/aida-public/AB6AXuDCDquta8fjxB6nw_zxcsa3NTtaEtpao-JdGI1_S0hLa1Mv6ruaYYnbOQDb3w31JVIN6o3QTr_ZBuWmgAiw9rTSQYuIOznuvUc78-aXkHA3itWWV3i3q75xsfMvKLec29LoAYG98tMGVBRBHu8CTThNePPZdknlnOpmdrHHMGc2FUKrUO9RNG29oQFl1V9I5ce_lkVTM4zZqcgv3C60GyciuV7gUJeLXlrCqGGOUdcmtanTKnIwC2IiU_Yz308bDFYcc2KHVaqDtMUL",
-    tags: ["React", "D3.js"],
+    id: "prey-pros-restaurant",
+    title: "Prey Pros Restaurant",
+    description: "Modern restaurant website experience with polished presentation, responsive layout, and streamlined browsing for menu and brand storytelling.",
+    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+    tags: ["React", "Responsive UI"],
     size: "large",
-    link: "https://github.com/alexrivera/ecotrack"
+    link: "https://prey-pros-restaurant.vercel.app/"
   },
   {
-    id: "streamline",
-    title: "Streamline",
-    description: "High-performance task management tool.",
-    image: "https://lh3.googleusercontent.com/aida-public/AB6AXuCCTp1pqjSAPd9jOhK1mBI9do8-bXkWMNW2zMAhKhEKBO71LPiNUaQXRtMIiAC5-hD5nokBfISMjOVtWbbLPUdDw8RE7PCAaclPxnhRGJHzR_hsoO0VtK8iTcaROHcR5qXnZSvAIhnlb0XcbYOPrHao7DZwEggB1vr-GPjNJPCzpkn4FgZP087SBLh64VoEvfuPqrPXZA2nvJ5tMjCUFLQP1kmLVEAjqlzKNvwqZQhThM4BBKJJuSHfsJfgEJowojY-uLh3fzsM6dlx",
-    tags: ["TypeScript", "Tailwind"],
+    id: "dach-luy",
+    title: "Dach Luy",
+    description: "Portfolio-style web experience focused on clean presentation, responsive design, and accessible frontend delivery across devices.",
+    image: "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1200&q=80",
+    tags: ["Frontend", "Accessibility"],
     size: "small",
-    link: "https://github.com/alexrivera/streamline"
+    link: "https://dach-luy.netlify.app/"
   },
   {
     id: "aura",
