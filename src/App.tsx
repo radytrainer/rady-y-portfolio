@@ -31,6 +31,32 @@ declare global {
         };
       };
     };
+    jspdf?: {
+      jsPDF: new (options: {
+        orientation: "portrait" | "landscape";
+        unit: "pt" | "mm" | "cm" | "in";
+        format: string;
+      }) => {
+        internal: {
+          pageSize: {
+            getWidth: () => number;
+            getHeight: () => number;
+          };
+        };
+        addPage: () => void;
+        save: (filename: string) => void;
+        setFillColor: (r: number, g?: number, b?: number) => void;
+        setDrawColor: (r: number, g?: number, b?: number) => void;
+        setTextColor: (r: number, g?: number, b?: number) => void;
+        setFont: (fontName: string, fontStyle?: string) => void;
+        setFontSize: (size: number) => void;
+        setLineWidth: (width: number) => void;
+        rect: (x: number, y: number, width: number, height: number, style?: string) => void;
+        line: (x1: number, y1: number, x2: number, y2: number) => void;
+        text: (text: string | string[], x: number, y: number, options?: { align?: string }) => void;
+        splitTextToSize: (text: string, size: number) => string[];
+      };
+    };
   }
 }
 
@@ -118,6 +144,231 @@ const SKILLS = [
   { name: "AWS", icon: <Cloud className="w-8 h-8" /> },
 ];
 
+const CONTACT_DETAILS = [
+  "Bangkok, Thailand",
+  "rady.bmcs@gmail.com",
+  "linkedin.com/in/rady-y",
+  "github.com/radytrainer",
+];
+
+const RESUME_STRENGTHS = [
+  "Scalable component architecture",
+  "Cross-functional product collaboration",
+  "Usability and visual polish",
+  "Clean handoff from design to code",
+];
+
+const RESUME_HIGHLIGHTS = [
+  "Built accessible interfaces that balanced product goals, maintainability, and visual quality.",
+  "Created reusable UI systems that improved development speed and consistency across screens.",
+  "Delivered responsive experiences for dashboards, workflows, and collaboration-focused products.",
+  "Contributed strong frontend craftsmanship across interaction, layout, and performance optimization.",
+];
+
+const RESUME_FOCUS_AREAS = [
+  { label: "Frontend", value: "React, TypeScript, Tailwind" },
+  { label: "Delivery", value: "Accessible, responsive, production-ready UI" },
+  { label: "Environment", value: "Remote, hybrid, product teams" },
+];
+
+const RESUME_SUMMARY =
+  "Frontend engineer with 5+ years of experience building accessible, high-performance digital products. Strong in React, TypeScript, design systems, and turning product goals into polished, production-ready interfaces.";
+
+const RESUME_PROFILE =
+  "I design and build frontend experiences that are fast, intuitive, and maintainable. My work centers on thoughtful interaction design, reusable systems, and close collaboration with product and design partners to deliver interfaces that feel refined in both code and UI.";
+
+const ensureJsPdf = async () => {
+  await loadHtml2Pdf();
+
+  const jsPdf = window.jspdf?.jsPDF;
+  if (!jsPdf) {
+    throw new Error("jsPDF unavailable");
+  }
+
+  return jsPdf;
+};
+
+const createResumePdf = async () => {
+  const JsPDF = await ensureJsPdf();
+  const doc = new JsPDF({ orientation: "portrait", unit: "pt", format: "letter" });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 40;
+  const sidebarWidth = 170;
+  const contentX = margin + sidebarWidth + 24;
+  const contentWidth = pageWidth - contentX - margin;
+  const bottomLimit = pageHeight - margin;
+
+  let leftY = 178;
+  let rightY = 188;
+
+  const addPage = () => {
+    doc.addPage();
+    doc.setFillColor(248, 251, 255);
+    doc.rect(0, 0, sidebarWidth + margin + 14, pageHeight, "F");
+    doc.setFillColor(15, 23, 42);
+    doc.rect(margin, 28, pageWidth - margin * 2, 8, "F");
+    leftY = margin + 20;
+    rightY = margin + 20;
+  };
+
+  const ensureRightSpace = (needed: number) => {
+    if (rightY + needed > bottomLimit) {
+      addPage();
+    }
+  };
+
+  const ensureLeftSpace = (needed: number) => {
+    if (leftY + needed > bottomLimit) {
+      addPage();
+    }
+  };
+
+  doc.setFillColor(248, 251, 255);
+  doc.rect(0, 0, sidebarWidth + margin + 14, pageHeight, "F");
+  doc.setFillColor(15, 23, 42);
+  doc.rect(margin, 28, pageWidth - margin * 2, 8, "F");
+
+  doc.setTextColor(0, 88, 190);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("SENIOR FRONTEND ENGINEER", contentX, 72);
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(28);
+  doc.text("Rady Y", contentX, 102);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(11);
+  doc.setTextColor(71, 85, 105);
+  const summaryLines = doc.splitTextToSize(RESUME_SUMMARY, contentWidth - 10);
+  doc.text(summaryLines, contentX, 126);
+
+  doc.setDrawColor(219, 228, 240);
+  doc.setLineWidth(1);
+  doc.line(contentX, 154, pageWidth - margin, 154);
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(219, 228, 240);
+  doc.rect(margin, 52, sidebarWidth, 108, "FD");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text("CONTACT", margin + 14, 74);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  doc.text(CONTACT_DETAILS, margin + 14, 94);
+
+  const drawSectionTitle = (title: string, x: number, y: number) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text(title.toUpperCase(), x, y);
+  };
+
+  const drawParagraph = (text: string, x: number, y: number, width: number) => {
+    const lines = doc.splitTextToSize(text, width);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(lines, x, y);
+    return y + lines.length * 14;
+  };
+
+  drawSectionTitle("Core Skills", margin, leftY);
+  leftY += 18;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(71, 85, 105);
+  const skillsLines = doc.splitTextToSize(
+    [...SKILLS.map((skill) => skill.name), "Accessibility", "Design Systems", "Responsive UI", "Performance"].join(" • "),
+    sidebarWidth - 20
+  );
+  doc.text(skillsLines, margin, leftY);
+  leftY += skillsLines.length * 13 + 20;
+
+  ensureLeftSpace(90);
+  drawSectionTitle("Strengths", margin, leftY);
+  leftY += 18;
+  RESUME_STRENGTHS.forEach((item) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    const lines = doc.splitTextToSize(`• ${item}`, sidebarWidth - 16);
+    doc.text(lines, margin, leftY);
+    leftY += lines.length * 13 + 4;
+  });
+
+  ensureLeftSpace(110);
+  leftY += 8;
+  drawSectionTitle("Focus Areas", margin, leftY);
+  leftY += 18;
+  RESUME_FOCUS_AREAS.forEach((item) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text(item.label.toUpperCase(), margin, leftY);
+    leftY += 12;
+    const lines = doc.splitTextToSize(item.value, sidebarWidth - 16);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text(lines, margin, leftY);
+    leftY += lines.length * 12 + 10;
+  });
+
+  drawSectionTitle("Professional Summary", contentX, rightY);
+  rightY += 18;
+  rightY = drawParagraph(RESUME_PROFILE, contentX, rightY, contentWidth);
+  rightY += 12;
+
+  ensureRightSpace(170);
+  drawSectionTitle("Selected Projects", contentX, rightY);
+  rightY += 18;
+  PROJECTS.forEach((project) => {
+    const tagText = project.tags.join(" | ");
+    const projectText = `${project.title} (${tagText})`;
+    const titleLines = doc.splitTextToSize(projectText, contentWidth);
+    const descLines = doc.splitTextToSize(project.description, contentWidth - 16);
+    const blockHeight = titleLines.length * 13 + descLines.length * 13 + 22;
+
+    ensureRightSpace(blockHeight + 10);
+    doc.setFillColor(248, 251, 255);
+    doc.rect(contentX, rightY - 12, contentWidth, blockHeight, "F");
+    doc.setFillColor(0, 88, 190);
+    doc.rect(contentX, rightY - 12, 4, blockHeight, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(titleLines, contentX + 14, rightY + 2);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(71, 85, 105);
+    doc.text(descLines, contentX + 14, rightY + titleLines.length * 13 + 4);
+    rightY += blockHeight + 10;
+  });
+
+  ensureRightSpace(120);
+  rightY += 4;
+  drawSectionTitle("Professional Highlights", contentX, rightY);
+  rightY += 18;
+  RESUME_HIGHLIGHTS.forEach((item) => {
+    const lines = doc.splitTextToSize(`• ${item}`, contentWidth);
+    ensureRightSpace(lines.length * 13 + 8);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(lines, contentX, rightY);
+    rightY += lines.length * 13 + 6;
+  });
+
+  doc.save("Rady_Y_Final.pdf");
+};
+
 export default function App() {
   const [activeSection, setActiveSection] = useState("hero");
   const [isExporting, setIsExporting] = useState(false);
@@ -198,30 +449,11 @@ export default function App() {
   };
 
   const handleDownloadPDF = async () => {
-    const element = document.getElementById("pdf-export");
-    if (!element) return;
-
     setPdfError(null);
     setIsExporting(true);
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-
-    const options = {
-      margin: [0.35, 0.35],
-      filename: "Rady_Y_Final.pdf",
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff"
-      },
-      jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-      pagebreak: { mode: ["css", "legacy"] }
-    };
 
     try {
-      const html2pdf = await loadHtml2Pdf();
-      await html2pdf().set(options).from(element).save();
+      await createResumePdf();
     } catch {
       setPdfError("PDF export is temporarily unavailable. Please refresh and try again.");
     } finally {
@@ -364,7 +596,7 @@ export default function App() {
           >
             <div className="w-64 h-64 sm:w-72 sm:h-72 md:w-[450px] md:h-[450px] rounded-full overflow-hidden border-[12px] border-white shadow-2xl relative z-10">
               <img 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxATcV4aXNVXYp0jUG_IIwtwvcpwqyODlO2DoV_z0sfaA-nUqfFeAzX27Na4kFL09HXlczWmUwoE5bsCFWx4gllJrH7lrumKokoYNbK3wR6T7ILGwU-Ulh_CPmoeudUm9g335mpfZBoWed4BYEJTktTBjNBx05IudNjOPJS52XZaO1f7dq4Yc51MDVzMQQoXhgocCQrJ7tu_UVlNyMeYpEJdCfSRavrFyOGOBdbwkaPmSv04KJkz86dIDy853TjQXzqHvzEUQdlqGd"
+                src={`${import.meta.env.BASE_URL}profile-image.png`}
                 alt="Rady Y"
                 className="w-full h-full object-cover"
               />
